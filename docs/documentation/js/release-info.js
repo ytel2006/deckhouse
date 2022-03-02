@@ -110,13 +110,22 @@ Date.prototype.format = function (mask, utc) {
   return dateFormat(this, mask, utc);
 };
 
+const icons = {
+  inactive: '😌 ',
+  queued: '🚀 ',
+  in_progress: '⏳ ',
+  pending: '🤔 ',
+  success: '✅ ',
+  failure: '❌ ',
+  error: '🛑 '
+};
+
 document.addEventListener("DOMContentLoaded", function () {
   const url = 'https://flow.deckhouse.io/deployments';
 
   fetch(url, {
       headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json;charset=utf-8'
+        'Accept': 'application/json'
       },
     })
     .then(respose => respose.json())
@@ -138,10 +147,28 @@ document.addEventListener("DOMContentLoaded", function () {
         state.innerText = ` at ${date.format("dddd, mmmm dd, yyyy")} at ${date.format("h:MM TT")}`;
 
         state.prepend(link);
-        if (getValueCell(item, 'state') === 'success') {
-          state.prepend("✅ ");
-        } else {
-          state.prepend("❌ ");
+        switch (getValueCell(item, 'state')) {
+          case 'inactive':
+            state.prepend(`${icons.inactive} `);
+            break;
+          case 'queued':
+            state.prepend(`${icons.queued} `);
+            break;
+          case 'in_progress':
+            state.prepend(`${icons.in_progress} `);
+            break;
+          case 'pending':
+            state.prepend(`${icons.pending} `);
+            break;
+          case 'success':
+            state.prepend(`${icons.success} `);
+            break;
+          case 'failure':
+            state.prepend(`${icons.failure} `);
+            break;
+          case 'error':
+            state.prepend(`${icons.error} `);
+            break;
         }
 
         trBody.append(channel, version, state);
