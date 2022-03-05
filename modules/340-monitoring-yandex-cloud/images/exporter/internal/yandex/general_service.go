@@ -20,12 +20,8 @@ func (s *generalService) IdForRequest() string {
 	return s.id
 }
 
-func (s *generalService) HasFilter() bool {
-	return false
-}
-
-func (s *generalService) Filter(metric *dto.Metric) *dto.Metric {
-	return metric
+func (s *generalService) GetFilterFunc() func(metric *dto.Metric) *dto.Metric {
+	return nil
 }
 
 func (s *generalService) Prefix() string {

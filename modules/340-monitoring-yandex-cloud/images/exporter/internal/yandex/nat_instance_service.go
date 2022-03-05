@@ -32,11 +32,15 @@ func (s *natService) IdForRequest() string {
 	return natInstanceServiceId
 }
 
-func (s *natService) HasFilter() bool {
-	return true
+func (s *natService) GetFilterFunc() func(metric *dto.Metric) *dto.Metric {
+	return s.filter
 }
 
-func (s *natService) Filter(metric *dto.Metric) *dto.Metric {
+func (s *natService) Prefix() string {
+	return s.prefix
+}
+
+func (s *natService) filter(metric *dto.Metric) *dto.Metric {
 	for _, l := range metric.Label {
 		if l.GetName() != "resource_id" {
 			continue
@@ -52,8 +56,4 @@ func (s *natService) Filter(metric *dto.Metric) *dto.Metric {
 	}
 
 	return nil
-}
-
-func (s *natService) Prefix() string {
-	return s.prefix
 }

@@ -32,7 +32,7 @@ cpu_utilization{cpu_name="cpu_2", resource_id="test2-aaaaaaaa-bbbbb-ccccc", reso
 	}
 
 	cases := []struct {
-		service       Service
+		service       service
 		shouldRenamed int
 		metricsToTest []string
 		title         string

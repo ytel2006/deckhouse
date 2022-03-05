@@ -71,17 +71,16 @@ type Config struct {
 	NatInstanceResourceIds []string `yaml:"natInstanceResourceIds"`
 }
 
+type service interface {
+	Prefix() string
+	GetFilterFunc() func(m *dto.Metric) *dto.Metric
+	IdForRequest() string
+}
+
 type Metrics struct {
 	config *Config
 
-	natInstanceService Service
-}
-
-type Service interface {
-	Prefix() string
-	Filter(m *dto.Metric) *dto.Metric
-	HasFilter() bool
-	IdForRequest() string
+	natInstanceService service
 }
 
 func NewMetrics(config *Config) *Metrics {
@@ -103,19 +102,19 @@ func (m *Metrics) GetMetrics(ctx context.Context, serviceId string) ([]byte, err
 		return nil, fmt.Errorf("Service not exists: %s", serviceId)
 	}
 
-	service := m.service(serviceId)
+	svc := m.service(serviceId)
 
-	bodyReader, err := m.request(ctx, service.IdForRequest())
+	bodyReader, err := m.request(ctx, svc.IdForRequest())
 	if err != err {
 		return nil, fmt.Errorf("error do request for service %s: %v", serviceId, err)
 	}
 
 	defer bodyReader.Close()
 
-	return rewriteMetricsName(bodyReader, service)
+	return rewriteMetricsName(bodyReader, svc)
 }
 
-func (m *Metrics) service(inService string) Service {
+func (m *Metrics) service(inService string) service {
 	if inService == natInstanceServiceId {
 		return m.natInstanceService
 	}
@@ -123,7 +122,7 @@ func (m *Metrics) service(inService string) Service {
 	return newGeneralService(inService, m.config)
 }
 
-func rewriteMetricsName(body io.Reader, service Service) ([]byte, error) {
+func rewriteMetricsName(body io.Reader, service service) ([]byte, error) {
 	var parser expfmt.TextParser
 	families, err := parser.TextToMetricFamilies(body)
 	if err != nil {
@@ -150,8 +149,9 @@ func rewriteMetricsName(body io.Reader, service Service) ([]byte, error) {
 	return out.Bytes(), nil
 }
 
-func filterMetrics(service Service, mf *dto.MetricFamily) {
-	if !service.HasFilter() {
+func filterMetrics(service service, mf *dto.MetricFamily) {
+	filter := service.GetFilterFunc()
+	if filter == nil {
 		return
 	}
 
@@ -159,7 +159,7 @@ func filterMetrics(service Service, mf *dto.MetricFamily) {
 	newMetrics := make([]*dto.Metric, 0, len(mf.GetMetric()))
 
 	for _, m := range metrics {
-		newMetric := service.Filter(m)
+		newMetric := filter(m)
 		if newMetric != nil {
 			newMetrics = append(newMetrics, newMetric)
 		}
