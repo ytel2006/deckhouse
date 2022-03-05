@@ -1,0 +1,47 @@
+project: exporter
+configVersion: 1
+
+---
+image: builder
+from: {{ env "BASE_GOLANG_16_ALPINE" }}
+git:
+- add: /modules/340-monitoring-yandex-cloud/images/exporter
+  to: /src
+  excludePaths:
+    - "**/*.md"
+    - "**/*.yaml"
+    - hack
+  stageDependencies:
+    install:
+      - go.mod
+      - go.sum
+    setup:
+      - go.mod
+      - go.sum
+      - "**/*.go"
+mount:
+- fromPath: ~/go-pkg-cache
+  to: /go/pkg
+docker:
+  ENV:
+    WORKDIR: /go/src/ya-exporter
+shell:
+  install:
+    - cd /go/src/ya-exporter
+    - echo "Running vendors..."
+    - go mod vendor
+    - echo "Running build..."
+    - go build -o ya-exporter main.go
+    - echo "Running internal tests..."
+    - go test ./...
+
+---
+image: exporter
+from: ubuntu:20.04
+import:
+- image: builder
+  add: /go/src/ya-exporter/ya-exporter
+  to: /ya-exporter
+  after: setup
+docker:
+  ENTRYPOINT: [ "/ya-exporter", "--config-dir", "/etc" ]
