@@ -5,10 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
-	"net"
-	"net/http"
-	"time"
 
 	dto "github.com/prometheus/client_model/go"
 
@@ -77,15 +73,21 @@ type service interface {
 	IdForRequest() string
 }
 
+type Api interface {
+	RequestMetrics(ctx context.Context, serviceId string) (io.ReadCloser, error)
+}
+
 type Metrics struct {
 	config *Config
+	api    Api
 
 	natInstanceService service
 }
 
-func NewMetrics(config *Config) *Metrics {
+func NewMetrics(config *Config, api Api) *Metrics {
 	return &Metrics{
 		config: config,
+		api:    api,
 
 		natInstanceService: newNatInstanceService(config),
 	}
@@ -104,7 +106,7 @@ func (m *Metrics) GetMetrics(ctx context.Context, serviceId string) ([]byte, err
 
 	svc := m.service(serviceId)
 
-	bodyReader, err := m.request(ctx, svc.IdForRequest())
+	bodyReader, err := m.api.RequestMetrics(ctx, svc.IdForRequest())
 	if err != err {
 		return nil, fmt.Errorf("error do request for service %s: %v", serviceId, err)
 	}
@@ -166,45 +168,4 @@ func filterMetrics(service service, mf *dto.MetricFamily) {
 	}
 
 	mf.Metric = newMetrics
-}
-
-func (m *Metrics) request(ctx context.Context, serviceId string) (io.ReadCloser, error) {
-	client := &http.Client{
-		Transport: &http.Transport{
-			DialContext: (&net.Dialer{
-				Timeout: 30 * time.Second,
-			}).DialContext,
-		},
-	}
-
-	const url = "https://monitoring.api.cloud.yandex.net/monitoring/v2/prometheusMetrics"
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed creating request: %s", err)
-	}
-
-	req.Header.Set("Authorization", "Bearer "+m.config.Token)
-
-	response, err := client.Do(req)
-
-	if e, ok := err.(net.Error); ok && e.Timeout() {
-		return nil, fmt.Errorf("do request timeout: %s", err)
-	} else if err != nil {
-		return nil, fmt.Errorf("failed send request: %s", err)
-	}
-
-	if response.StatusCode != http.StatusOK {
-		responseData, err := ioutil.ReadAll(response.Body)
-		if err != nil {
-			errStr := fmt.Errorf("parse error for response body: %s", err).Error()
-			responseData = []byte(errStr)
-		}
-
-		response.Body.Close()
-
-		return nil, fmt.Errorf("status code %v, error response: %s", response.StatusCode, string(responseData))
-	}
-
-	return response.Body, nil
 }

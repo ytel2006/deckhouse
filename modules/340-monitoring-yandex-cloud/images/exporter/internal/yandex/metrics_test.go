@@ -89,5 +89,4 @@ cpu_utilization{cpu_name="cpu_2", resource_id="test2-aaaaaaaa-bbbbb-ccccc", reso
 			}
 		})
 	}
-
 }
