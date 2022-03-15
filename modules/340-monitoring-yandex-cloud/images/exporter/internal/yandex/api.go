@@ -11,6 +11,8 @@ import (
 	"net/url"
 	"time"
 
+	ycsdk "github.com/yandex-cloud/go-sdk"
+
 	"github.com/pkg/errors"
 	"github.com/yandex-cloud/go-sdk/iamkey"
 )
@@ -90,10 +92,22 @@ func TokenFromServiceAccount(sa io.Reader) (string, error) {
 		return "", errors.Wrap(err, "malformed service account json")
 	}
 
+	creds, err := ycsdk.ServiceAccountKey(&iamKey)
+
+	c, ok := creds.(ycsdk.IAMTokenCredentials)
+	if !ok {
+		return "", fmt.Errorf("cannot convert to iam token")
+	}
+
 	if err != nil {
 		return "", errors.Wrap(err, "invalid auth credentials")
 	}
 
+	resp, err := c.IAMToken(context.TODO())
+	if err != nil {
+		return "", err
+	}
+
 	// todo fix
-	return "", nil
+	return resp.GetIamToken(), nil
 }
