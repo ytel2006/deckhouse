@@ -9,26 +9,79 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	ycsdk "github.com/yandex-cloud/go-sdk"
 
 	"github.com/pkg/errors"
 	"github.com/yandex-cloud/go-sdk/iamkey"
 )
 
-const prometheusMetricsUrl = "https://monitoring.api.cloud.yandex.net/monitoring/v2/prometheusMetrics"
+const (
+	prometheusMetricsUrl = "https://monitoring.api.cloud.yandex.net/monitoring/v2/prometheusMetrics"
+	retries              = 3
+)
 
 type CloudApi struct {
-	token    string
-	folderId string
+	folderId        string
+	logger          *log.Logger
+	autoRenewPeriod time.Duration
+	onRenewError    func()
+
+	tokenMutex sync.RWMutex
+	token      string
+
+	isInit bool
+	iamKey *iamkey.Key
 }
 
-func NewCloudApi(token, folderId string) *CloudApi {
+func NewCloudApi(logger *log.Logger, folderId string) *CloudApi {
 	return &CloudApi{
-		token:    token,
 		folderId: folderId,
+		logger:   logger,
+		// iam token available during 12 hours, but yandex recommend update renew token every one hour
+		autoRenewPeriod: 1 * time.Hour,
 	}
+}
+
+func (a *CloudApi) WithAutoRenewPeriod(autoRenewPeriod time.Duration) *CloudApi {
+	a.autoRenewPeriod = autoRenewPeriod
+
+	return a
+}
+
+func (a *CloudApi) WithRenewTokenErrorHandler(handler func()) *CloudApi {
+	a.onRenewError = handler
+
+	return a
+}
+
+func (a *CloudApi) Init(serviceAccount io.Reader) error {
+	if a.isInit {
+		a.logger.Warningln("Yandex cloud api already init")
+		return nil
+	}
+
+	var iamKey iamkey.Key
+	decoder := json.NewDecoder(serviceAccount)
+
+	err := decoder.Decode(&iamKey)
+	if err != nil {
+		return errors.Wrap(err, "malformed service account json")
+	}
+
+	a.iamKey = &iamKey
+
+	err = a.renewToken()
+	if err != nil {
+		return err
+	}
+
+	go a.startAutoRenewToken()
+
+	return nil
 }
 
 func (a *CloudApi) RequestMetrics(ctx context.Context, serviceId string) (io.ReadCloser, error) {
@@ -82,32 +135,69 @@ func (a *CloudApi) url(serviceId string) string {
 	return u.String()
 }
 
-func TokenFromServiceAccount(sa io.Reader) (string, error) {
-	var iamKey iamkey.Key
+func (a *CloudApi) getToken() string {
+	a.tokenMutex.RLock()
+	defer a.tokenMutex.RUnlock()
 
-	decoder := json.NewDecoder(sa)
+	return a.token
+}
 
-	err := decoder.Decode(&iamKey)
+func (a *CloudApi) startAutoRenewToken() {
+	a.logger.Info("Start auto renew IAM-token")
+	a.logger.Warn("Stop auto renew IAM-token")
+
+	t := time.NewTicker(a.autoRenewPeriod)
+	defer t.Stop()
+
+	for {
+		select {
+		case <-t.C:
+			err := a.renewToken()
+			if err != nil {
+				a.logger.Errorf("Cannot auto-renew IAM-token: %v", err)
+				if a.onRenewError != nil {
+					a.onRenewError()
+				}
+				return
+			}
+		}
+	}
+}
+
+func (a *CloudApi) renewToken() error {
+	token := ""
+
+	rawCreds, err := ycsdk.ServiceAccountKey(a.iamKey)
 	if err != nil {
-		return "", errors.Wrap(err, "malformed service account json")
+		return errors.Wrap(err, "invalid auth credentials")
 	}
 
-	creds, err := ycsdk.ServiceAccountKey(&iamKey)
-
-	c, ok := creds.(ycsdk.IAMTokenCredentials)
+	iamCreds, ok := rawCreds.(ycsdk.IAMTokenCredentials)
 	if !ok {
-		return "", fmt.Errorf("cannot convert to iam token")
+		return fmt.Errorf("cannot convert to IAM-token")
 	}
 
-	if err != nil {
-		return "", errors.Wrap(err, "invalid auth credentials")
+	var lastErr error
+	for i := 1; i <= retries; i++ {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		cancel()
+		resp, err := iamCreds.IAMToken(ctx)
+		if err != nil {
+			lastErr = errors.Wrap(err, "cannot get IAM-token")
+			a.logger.Errorf("%v", lastErr)
+			continue
+		}
+
+		token = resp.GetIamToken()
 	}
 
-	resp, err := c.IAMToken(context.TODO())
-	if err != nil {
-		return "", err
+	if token == "" {
+		return fmt.Errorf("cannot get IAM-token after %d retries, last error: %v", retries, lastErr)
 	}
 
-	// todo fix
-	return resp.GetIamToken(), nil
+	a.tokenMutex.Lock()
+	defer a.tokenMutex.Unlock()
+	a.token = token
+
+	return nil
 }
