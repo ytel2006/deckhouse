@@ -1,45 +1,89 @@
 package server
 
 import (
+	"context"
 	"exporter/internal/yandex"
-	"io"
+	"fmt"
 	"net/http"
-	"strings"
-	"sync"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
-	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi"
 	log "github.com/sirupsen/logrus"
-
-	"exporter/internal/config"
 )
 
 type Server struct {
-	router chi.Router
-	logger *log.Logger
+	api             *yandex.CloudApi
+	servicesForBach []string
+	logger          *log.Entry
 
-	config  config.Server
-	metrics *yandex.Metrics
+	router chi.Router
 }
 
-func New(config config.Server, logger *log.Logger, metrics *yandex.Metrics) *Server {
+func New(logger *log.Entry, api *yandex.CloudApi, servicesForBach []string) *Server {
 	return &Server{
-		config:  config,
-		logger:  logger,
-		router:  chi.NewRouter(),
-		metrics: metrics,
+		logger:          logger,
+		router:          chi.NewRouter(),
+		api:             api,
+		servicesForBach: servicesForBach,
 	}
 }
 
-func (h *Server) Run() {
+func (h *Server) Run(listenAddr string, stopCh chan struct{}) error {
 	h.router.Route("/metrics/{service}", func(r chi.Router) {
-		r.Get("/", h.getMetrics)
+		r.Get("/", h.getByService)
 	})
+
+	h.router.Get("/metrics", h.getByService)
+
+	srv := http.Server{
+		Addr:         listenAddr,
+		Handler:      h.router,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 1 * time.Minute,
+		IdleTimeout:  1 * time.Minute,
+	}
+
+	srv.RegisterOnShutdown(func() {
+		close(stopCh)
+	})
+
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		h.logger.Infof("Signal received: %v. Exiting...", <-signalChan)
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+
+		err := srv.Shutdown(ctx)
+		if err != nil {
+			h.logger.Fatalf("Error occurred while closing the server: %v", err)
+		}
+		os.Exit(0)
+	}()
+
+	h.logger.Infof("Start listening on %q", listenAddr)
+
+	return srv.ListenAndServe()
 }
 
-func (h *Server) getMetrics(w http.ResponseWriter, r *http.Request) {
+func (h *Server) writeError(upErr error, w http.ResponseWriter) {
+	h.logger.Errorf("cannot scrape metrics: %v", upErr)
+	w.WriteHeader(http.StatusInternalServerError)
+	response := "Cannot scrape metrics. see server logs for describe error"
+
+	if _, err := w.Write([]byte(response)); err != nil {
+		h.logger.Errorf("cannot write response: %v", err)
+	}
+}
+
+func (h *Server) getByService(w http.ResponseWriter, r *http.Request) {
 	service := chi.URLParam(r, "service")
 
-	if !h.metrics.HasService(service) {
+	if !h.api.HasService(service) {
 		w.WriteHeader(http.StatusBadRequest)
 		_, err := w.Write([]byte("Incorrect service"))
 		if err != nil {
@@ -47,58 +91,52 @@ func (h *Server) getMetrics(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	w.Write()
+	metrics, err := h.api.RequestMetrics(r.Context(), service)
+	if err != nil {
+		h.writeError(err, w)
+		return
+	}
 
+	_, err = w.Write(metrics)
+	if err != nil {
+		h.logger.Errorf("cannot write response: %v", err)
+	}
 }
 
-type metric struct {
-	metrics []*string
-	mu      sync.Mutex
-}
+func (h *Server) getBatch(w http.ResponseWriter, r *http.Request) {
+	servicesLen := len(h.servicesForBach)
 
-func (h *Server) MetricsServeHTTP(w http.ResponseWriter, r *http.Request) {
-	var wg sync.WaitGroup
-	var response metric
+	if servicesLen == 0 {
+		h.writeError(fmt.Errorf("cannot pas services for scrape"), w)
+		return
+	}
 
-	response.metrics = make([]*string, 0)
-	wg.Add(len(h.req))
+	resultsCh := make(chan []byte, servicesLen)
 
-	for _, inst := range h.req {
-		go func(inst data.InstanceRequest) {
-			defer wg.Done()
-			str, err := getMetrics(inst, r.Context())
+	for _, s := range h.servicesForBach {
+		go func(service string) {
+			metrics, err := h.api.RequestMetrics(r.Context(), service)
 			if err != nil {
-				log.Printf("ERROR: Cannot get metrics for url '%s': %s\n", inst.Url, err)
+				h.logger.Errorf("ERROR: Cannot get metrics for service %s: %v\n", service, err)
+				resultsCh <- nil
 				return
 			}
-			response.mu.Lock()
-			response.metrics = append(response.metrics, &str)
-			response.mu.Unlock()
-		}(inst)
+
+			resultsCh <- metrics
+		}(s)
 	}
-	wg.Wait()
 
-	response.mu.Lock()
-	result := buildString(response.metrics)
-	response.mu.Unlock()
-
-	if result == "" {
-		w.WriteHeader(http.StatusNotFound)
-		_, sendErr := io.WriteString(w, "404 cannot get metrics")
-		if sendErr != nil {
-			log.Fatalf("ERROR: Internal error. Cannot send '404 Not found' response to client: %s", sendErr)
+	for i := 0; i < servicesLen; i++ {
+		res := <-resultsCh
+		if res != nil {
+			_, err := w.Write(res)
+			if err != nil {
+				h.logger.Errorf("cannot write metrics %v", err)
+			}
 		}
 	}
-	_, err := io.WriteString(w, result)
+	_, err = w.Write(metrics)
 	if err != nil {
-		log.Fatalf("ERROR: Internal error. Cannot send '200 OK' response to client: %s", err)
+		h.logger.Errorf("cannot write response: %v", err)
 	}
-}
-
-func buildString(resp []*string) string {
-	var builder strings.Builder
-	for _, s := range resp {
-		builder.WriteString(*s)
-	}
-	return builder.String()
 }

@@ -11,4 +11,5 @@ require (
 	github.com/stretchr/testify v1.7.0
 	github.com/yandex-cloud/go-sdk v0.0.0-20220228113930-55bcd14d7e7e
 	golang.org/x/sys v0.0.0-20220227234510-4e6760a101f9 // indirect
+	gopkg.in/alecthomas/kingpin.v2 v2.2.6 // indirect
 )

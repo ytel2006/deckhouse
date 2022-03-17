@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -24,9 +25,51 @@ const (
 	retries              = 3
 )
 
+var services = map[string]struct{}{
+	// Compute Cloud
+	"compute": {},
+	// Object Storage
+	"storage": {},
+	// Managed Service for PostgreSQL
+	"managed-postgresql": {},
+	// Managed Service for ClickHouse;
+	"managed-clickhouse": {},
+	// Managed Service for MongoDB;
+	"managed-mongodb": {},
+	// Managed Service for MySQL;
+	"managed-mysql": {},
+	// Managed Service for Redis;
+	"managed-redis": {},
+	// Managed Service for Apache Kafka®;
+	"managed-kafka": {},
+	// Managed Service for Elasticsearch;
+	"managed-elasticsearch": {},
+	// Managed Service for SQL Server
+	"managed-sqlserver": {},
+	// Managed Service for Kubernetes;
+	"managed-kubernetes": {},
+	// Cloud Functions
+	"serverless-functions": {},
+	// триггеры Cloud Functions
+	"serverless_triggers_client_metrics": {},
+	// Yandex Database
+	"ydb": {},
+	// Cloud Interconnect;
+	"interconnect": {},
+	// Certificate Manager;
+	"certificate-manager": {},
+	// Data Transfer
+	"data-transfer": {},
+	// Data Proc
+	"data-proc": {},
+	// API Gateway.
+	"serverless-apigateway": {},
+}
+
 type CloudApi struct {
 	folderId        string
-	logger          *log.Logger
+	stopCh          chan struct{}
+	logger          *log.Entry
 	autoRenewPeriod time.Duration
 	onRenewError    func()
 
@@ -37,12 +80,13 @@ type CloudApi struct {
 	iamKey *iamkey.Key
 }
 
-func NewCloudApi(logger *log.Logger, folderId string) *CloudApi {
+func NewCloudAPI(logger *log.Entry, folderId string, stopCh chan struct{}) *CloudApi {
 	return &CloudApi{
 		folderId: folderId,
 		logger:   logger,
 		// iam token available during 12 hours, but yandex recommend update renew token every one hour
 		autoRenewPeriod: 1 * time.Hour,
+		stopCh:          stopCh,
 	}
 }
 
@@ -58,7 +102,18 @@ func (a *CloudApi) WithRenewTokenErrorHandler(handler func()) *CloudApi {
 	return a
 }
 
-func (a *CloudApi) Init(serviceAccount io.Reader) error {
+func (a *CloudApi) HasService(key string) bool {
+	_, has := services[key]
+
+	return has
+}
+
+func (a *CloudApi) InitWithAPIKey(key string) {
+	a.setToken(strings.TrimSpace(key))
+	a.isInit = true
+}
+
+func (a *CloudApi) InitWithServiceAccount(serviceAccount io.Reader) error {
 	if a.isInit {
 		a.logger.Warningln("Yandex cloud api already init")
 		return nil
@@ -81,10 +136,12 @@ func (a *CloudApi) Init(serviceAccount io.Reader) error {
 
 	go a.startAutoRenewToken()
 
+	a.isInit = true
+
 	return nil
 }
 
-func (a *CloudApi) RequestMetrics(ctx context.Context, serviceId string) (io.ReadCloser, error) {
+func (a *CloudApi) RequestMetrics(ctx context.Context, serviceId string) ([]byte, error) {
 	client := &http.Client{
 		Transport: &http.Transport{
 			DialContext: (&net.Dialer{
@@ -98,7 +155,8 @@ func (a *CloudApi) RequestMetrics(ctx context.Context, serviceId string) (io.Rea
 		return nil, fmt.Errorf("failed creating request: %s", err)
 	}
 
-	req.Header.Set("Authorization", "Bearer "+a.token)
+	token := a.getToken()
+	req.Header.Set("Authorization", "Bearer "+token)
 
 	response, err := client.Do(req)
 
@@ -142,6 +200,13 @@ func (a *CloudApi) getToken() string {
 	return a.token
 }
 
+func (a *CloudApi) setToken(token string) {
+	a.tokenMutex.Lock()
+	defer a.tokenMutex.Unlock()
+
+	a.token = token
+}
+
 func (a *CloudApi) startAutoRenewToken() {
 	a.logger.Info("Start auto renew IAM-token")
 	a.logger.Warn("Stop auto renew IAM-token")
@@ -151,6 +216,8 @@ func (a *CloudApi) startAutoRenewToken() {
 
 	for {
 		select {
+		case <-a.stopCh:
+			return
 		case <-t.C:
 			err := a.renewToken()
 			if err != nil {
@@ -165,8 +232,6 @@ func (a *CloudApi) startAutoRenewToken() {
 }
 
 func (a *CloudApi) renewToken() error {
-	token := ""
-
 	rawCreds, err := ycsdk.ServiceAccountKey(a.iamKey)
 	if err != nil {
 		return errors.Wrap(err, "invalid auth credentials")
@@ -177,27 +242,35 @@ func (a *CloudApi) renewToken() error {
 		return fmt.Errorf("cannot convert to IAM-token")
 	}
 
+	token := ""
 	var lastErr error
-	for i := 1; i <= retries; i++ {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		cancel()
-		resp, err := iamCreds.IAMToken(ctx)
-		if err != nil {
-			lastErr = errors.Wrap(err, "cannot get IAM-token")
-			a.logger.Errorf("%v", lastErr)
-			continue
-		}
 
-		token = resp.GetIamToken()
+	for i := 1; i <= retries; i++ {
+		token, lastErr = a.requestToken(&iamCreds)
+		if lastErr == nil {
+			break
+		}
 	}
 
 	if token == "" {
 		return fmt.Errorf("cannot get IAM-token after %d retries, last error: %v", retries, lastErr)
 	}
 
-	a.tokenMutex.Lock()
-	defer a.tokenMutex.Unlock()
-	a.token = token
+	a.setToken(token)
 
 	return nil
+}
+
+func (a *CloudApi) requestToken(iamCreds *ycsdk.IAMTokenCredentials) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	resp, err := iamCreds.IAMToken(ctx)
+	if err != nil {
+		e := errors.Wrap(err, "cannot get IAM-token")
+		a.logger.Errorf("%v", e)
+		return "", e
+	}
+
+	return resp.GetIamToken(), nil
 }
