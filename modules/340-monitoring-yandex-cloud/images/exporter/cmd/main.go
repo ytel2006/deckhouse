@@ -1,8 +1,13 @@
 package main
 
 import (
-	"exporter/internal/server"
+	"os"
 
+	"github.com/sirupsen/logrus"
+
+	"gopkg.in/alecthomas/kingpin.v2"
+
+	"exporter/internal/server"
 	"exporter/internal/yandex"
 )
 
@@ -17,12 +22,19 @@ func main() {
 
 		stopCh := make(chan struct{}, 1)
 
-		yandexAPI := yandex.NewCloudAPI(logger, folderID, stopCh)
+		yandexAPI := yandex.NewCloudAPI(logger, folderID, stopCh).
+			WithAutoRenewPeriod(autoRenewIAMToken)
+
 		if err := initAPI(yandexAPI); err != nil {
 			return err
 		}
 
-		return server.New(logger, yandexAPI).Run(listenAddress, stopCh)
+		return server.New(logger, yandexAPI, services).Run(listenAddress, stopCh)
 	})
 
+	_, err := kpApp.Parse(os.Args[1:])
+	if err != nil {
+		logrus.Error(err)
+		os.Exit(1)
+	}
 }

@@ -51,5 +51,5 @@ func initAPI(api *yandex.CloudApi) error {
 		return nil
 	}
 
-	return fmt.Errorf("should pass path to service account or pass apik")
+	return fmt.Errorf("should pass path to service account, pass to file contains APIKey or pass APIKey")
 }

@@ -20,6 +20,7 @@ func initLogger() *log.Entry {
 	}
 
 	log.SetFormatter(formatter)
+	log.SetLevel(log.Level(loggerLevel))
 
 	return log.NewEntry(log.New())
 }

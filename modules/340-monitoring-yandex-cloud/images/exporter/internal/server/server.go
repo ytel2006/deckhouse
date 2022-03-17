@@ -22,21 +22,39 @@ type Server struct {
 	router chi.Router
 }
 
+type serviceResult struct {
+	metrics []byte
+	service string
+	err     error
+}
+
 func New(logger *log.Entry, api *yandex.CloudApi, servicesForBach []string) *Server {
+	metricsSet := map[string]struct{}{}
+	servicesList := make([]string, 0)
+	for _, s := range servicesForBach {
+		if _, ok := metricsSet[s]; !ok {
+			metricsSet[s] = struct{}{}
+			if api.HasService(s) {
+				servicesList = append(servicesList, s)
+			} else {
+				logger.Warningf("incorrect service %s", s)
+			}
+		}
+	}
+
 	return &Server{
 		logger:          logger,
 		router:          chi.NewRouter(),
 		api:             api,
-		servicesForBach: servicesForBach,
+		servicesForBach: servicesList,
 	}
 }
 
 func (h *Server) Run(listenAddr string, stopCh chan struct{}) error {
-	h.router.Route("/metrics/{service}", func(r chi.Router) {
-		r.Get("/", h.getByService)
+	h.router.Route("/metrics", func(r chi.Router) {
+		r.Get("/{service}", h.getByService)
+		r.Get("/", h.getBatch)
 	})
-
-	h.router.Get("/metrics", h.getByService)
 
 	srv := http.Server{
 		Addr:         listenAddr,
@@ -82,13 +100,11 @@ func (h *Server) writeError(upErr error, w http.ResponseWriter) {
 
 func (h *Server) getByService(w http.ResponseWriter, r *http.Request) {
 	service := chi.URLParam(r, "service")
+	h.logger.Infof("Request scrape metrics for service: %s", service)
 
 	if !h.api.HasService(service) {
-		w.WriteHeader(http.StatusBadRequest)
-		_, err := w.Write([]byte("Incorrect service"))
-		if err != nil {
-			h.logger.Errorf("Does not send response: %v", err)
-		}
+		h.writeError(fmt.Errorf("service '%s' not found", service), w)
+		return
 	}
 
 	metrics, err := h.api.RequestMetrics(r.Context(), service)
@@ -101,42 +117,57 @@ func (h *Server) getByService(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.logger.Errorf("cannot write response: %v", err)
 	}
+	h.logger.Infof("End request scrape metrics for service: %s", service)
 }
 
 func (h *Server) getBatch(w http.ResponseWriter, r *http.Request) {
+	h.logger.Info("Request scrape batch metrics")
 	servicesLen := len(h.servicesForBach)
 
 	if servicesLen == 0 {
-		h.writeError(fmt.Errorf("cannot pas services for scrape"), w)
+		h.writeError(fmt.Errorf("Pass services for scrape metrics"), w)
 		return
 	}
 
-	resultsCh := make(chan []byte, servicesLen)
+	resultsCh := make(chan *serviceResult, servicesLen)
 
 	for _, s := range h.servicesForBach {
 		go func(service string) {
+			res := &serviceResult{
+				service: service,
+			}
 			metrics, err := h.api.RequestMetrics(r.Context(), service)
 			if err != nil {
-				h.logger.Errorf("ERROR: Cannot get metrics for service %s: %v\n", service, err)
-				resultsCh <- nil
-				return
+				res.err = err
+			} else {
+				res.metrics = metrics
 			}
 
-			resultsCh <- metrics
+			resultsCh <- res
 		}(s)
 	}
 
+	var result []byte
+	var servicesWithErrors []string
+
 	for i := 0; i < servicesLen; i++ {
 		res := <-resultsCh
-		if res != nil {
-			_, err := w.Write(res)
-			if err != nil {
-				h.logger.Errorf("cannot write metrics %v", err)
-			}
+		if res.err == nil {
+			result = append(result, res.metrics...)
+		} else {
+			h.logger.Errorf("ERROR: Cannot get metrics for service %s: %v\n", res.service, res.err)
+			servicesWithErrors = append(servicesWithErrors, res.service)
 		}
 	}
-	_, err = w.Write(metrics)
-	if err != nil {
-		h.logger.Errorf("cannot write response: %v", err)
+
+	if _, err := w.Write(result); err != nil {
+		h.logger.Errorf("cannot write result: %v", err)
 	}
+
+	if len(servicesWithErrors) > 0 {
+		h.logger.Warningf("End request scrape batch metrics with errors: %v", servicesWithErrors)
+	} else {
+		h.logger.Info("End request scrape batch metrics")
+	}
+
 }

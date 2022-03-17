@@ -13,10 +13,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	ycsdk "github.com/yandex-cloud/go-sdk"
-
-	"github.com/pkg/errors"
 	"github.com/yandex-cloud/go-sdk/iamkey"
 )
 
@@ -72,6 +71,7 @@ type CloudApi struct {
 	logger          *log.Entry
 	autoRenewPeriod time.Duration
 	onRenewError    func()
+	client          *http.Client
 
 	tokenMutex sync.RWMutex
 	token      string
@@ -81,12 +81,21 @@ type CloudApi struct {
 }
 
 func NewCloudAPI(logger *log.Entry, folderId string, stopCh chan struct{}) *CloudApi {
+	client := &http.Client{
+		Transport: &http.Transport{
+			DialContext: (&net.Dialer{
+				Timeout: 30 * time.Second,
+			}).DialContext,
+		},
+	}
+
 	return &CloudApi{
 		folderId: folderId,
 		logger:   logger,
 		// iam token available during 12 hours, but yandex recommend update renew token every one hour
 		autoRenewPeriod: 1 * time.Hour,
 		stopCh:          stopCh,
+		client:          client,
 	}
 }
 
@@ -109,6 +118,11 @@ func (a *CloudApi) HasService(key string) bool {
 }
 
 func (a *CloudApi) InitWithAPIKey(key string) {
+	if a.isInit {
+		a.logger.Warningln("Yandex cloud api already init")
+		return
+	}
+
 	a.setToken(strings.TrimSpace(key))
 	a.isInit = true
 }
@@ -142,14 +156,6 @@ func (a *CloudApi) InitWithServiceAccount(serviceAccount io.Reader) error {
 }
 
 func (a *CloudApi) RequestMetrics(ctx context.Context, serviceId string) ([]byte, error) {
-	client := &http.Client{
-		Transport: &http.Transport{
-			DialContext: (&net.Dialer{
-				Timeout: 30 * time.Second,
-			}).DialContext,
-		},
-	}
-
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.url(serviceId), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed creating request: %s", err)
@@ -158,10 +164,14 @@ func (a *CloudApi) RequestMetrics(ctx context.Context, serviceId string) ([]byte
 	token := a.getToken()
 	req.Header.Set("Authorization", "Bearer "+token)
 
-	response, err := client.Do(req)
+	response, err := a.client.Do(req)
+
+	if response != nil && response.Body != nil {
+		defer response.Body.Close()
+	}
 
 	if e, ok := err.(net.Error); ok && e.Timeout() {
-		return nil, fmt.Errorf("do request timeout: %s", err)
+		return nil, fmt.Errorf("do request timeout: %v", err)
 	} else if err != nil {
 		return nil, fmt.Errorf("failed send request: %s", err)
 	}
@@ -173,12 +183,10 @@ func (a *CloudApi) RequestMetrics(ctx context.Context, serviceId string) ([]byte
 			responseData = []byte(errStr)
 		}
 
-		response.Body.Close()
-
 		return nil, fmt.Errorf("status code %v, error response: %s", response.StatusCode, string(responseData))
 	}
 
-	return response.Body, nil
+	return io.ReadAll(response.Body)
 }
 
 func (a *CloudApi) url(serviceId string) string {
@@ -232,21 +240,30 @@ func (a *CloudApi) startAutoRenewToken() {
 }
 
 func (a *CloudApi) renewToken() error {
+	a.logger.Info("Start getting new IAM-token")
+
 	rawCreds, err := ycsdk.ServiceAccountKey(a.iamKey)
 	if err != nil {
 		return errors.Wrap(err, "invalid auth credentials")
 	}
 
-	iamCreds, ok := rawCreds.(ycsdk.IAMTokenCredentials)
+	iamCreds, ok := rawCreds.(ycsdk.ExchangeableCredentials)
 	if !ok {
-		return fmt.Errorf("cannot convert to IAM-token")
+		return fmt.Errorf("cannot convert rawCreds to ExchangeableCredentials")
 	}
+
+	request, err := iamCreds.IAMTokenRequest()
+	if err != nil {
+		return fmt.Errorf("cannot get IAMToken request: %v", err)
+	}
+
+	jwtForExchange := request.GetJwt()
 
 	token := ""
 	var lastErr error
 
 	for i := 1; i <= retries; i++ {
-		token, lastErr = a.requestToken(&iamCreds)
+		token, lastErr = a.requestToken(jwtForExchange)
 		if lastErr == nil {
 			break
 		}
@@ -258,19 +275,38 @@ func (a *CloudApi) renewToken() error {
 
 	a.setToken(token)
 
+	a.logger.Info("Getting new IAM-token was successfully")
+
 	return nil
 }
 
-func (a *CloudApi) requestToken(iamCreds *ycsdk.IAMTokenCredentials) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	resp, err := iamCreds.IAMToken(ctx)
+func (a *CloudApi) requestToken(jwtForExchange string) (string, error) {
+	body := strings.NewReader(fmt.Sprintf(`{"jwt":"%s"}`, jwtForExchange))
+	req, err := http.NewRequest("POST", "https://iam.api.cloud.yandex.net/iam/v1/tokens", body)
 	if err != nil {
-		e := errors.Wrap(err, "cannot get IAM-token")
-		a.logger.Errorf("%v", e)
-		return "", e
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := a.client.Do(req)
+	if err != nil {
+		return "", err
 	}
 
-	return resp.GetIamToken(), nil
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := ioutil.ReadAll(resp.Body)
+		panic(fmt.Sprintf("%s: %s", resp.Status, body))
+	}
+
+	var data struct {
+		IAMToken string `json:"iamToken"`
+	}
+
+	err = json.NewDecoder(resp.Body).Decode(&data)
+	if err != nil {
+		return "", err
+	}
+
+	return data.IAMToken, err
 }
