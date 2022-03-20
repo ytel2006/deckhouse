@@ -56,6 +56,10 @@ func (h *Server) Run(listenAddr string, stopCh chan struct{}) error {
 		r.Get("/", h.getBatch)
 	})
 
+	h.router.Route("/healthz", func(r chi.Router) {
+		r.Get("/", h.healthz)
+	})
+
 	srv := http.Server{
 		Addr:         listenAddr,
 		Handler:      h.router,
@@ -86,6 +90,13 @@ func (h *Server) Run(listenAddr string, stopCh chan struct{}) error {
 	h.logger.Infof("Start listening on %q", listenAddr)
 
 	return srv.ListenAndServe()
+}
+
+func (h *Server) healthz(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write([]byte("Ok")); err != nil {
+		h.logger.Errorf("cannot write response for /healthz: %v", err)
+	}
 }
 
 func (h *Server) writeError(upErr error, w http.ResponseWriter) {

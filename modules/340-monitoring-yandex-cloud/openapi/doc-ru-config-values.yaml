@@ -1,5 +1,12 @@
 type: object
 properties:
+  apiKey:
+    type: string
+    x-examples: [ "key" ]
+    description: |
+      [API-ключ](https://cloud.yandex.com/en/docs/iam/concepts/authorization/api-key) сервисного аккаунта.
+      [Инструкция по созданию API-ключ](https://cloud.yandex.com/ru/docs/iam/operations/api-key/create)
+      Для доступа к метрикам нелбходимо назначить роль 'monitoring.viewer' для сервис-аккаунта.
   highAvailability:
     description: |
       Ручное управление режимом отказоустойчивости.
@@ -16,14 +23,3 @@ properties:
       Структура, аналогичная  `spec.tolerations` в Kubernetes Pod.
 
       Если ничего не указано или указано `false` — будет [использоваться автоматика](https://deckhouse.io/ru/documentation/v1/#выделение-узлов-под-определенный-вид-нагрузки).
-  vpa:
-    type: object
-    description: |
-      Настройки VPA для деплоймента kube-state-metrics.
-    properties:
-      kubeStateMetricsMaxCPU:
-        description: |
-          Настройки лимита CPU в VPA для kube-state-metrics.
-      kubeStateMetricsMaxMemory:
-        description: |
-          Настройки лимита памяти в VPA для kube-state-metrics.

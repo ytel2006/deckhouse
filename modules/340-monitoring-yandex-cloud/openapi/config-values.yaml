@@ -1,5 +1,14 @@
 type: object
+required:
+- apiKey
 properties:
+  apiKey:
+    type: string
+    x-examples: [ "key" ]
+    description: |
+      Service account [API key](https://cloud.yandex.com/en/docs/iam/concepts/authorization/api-key).
+      [Instruction for creating APIKey](https://cloud.yandex.com/en/docs/iam/operations/api-key/create).
+      For access to get metrics you need to add role 'monitoring.viewer' to service-account.
   highAvailability:
     type: boolean
     x-examples: [true, false]
@@ -43,27 +52,3 @@ properties:
       The same as in the pods' `spec.tolerations` parameter in Kubernetes;
 
       If the parameter is omitted or `false`, it will be determined [automatically](https://deckhouse.io/en/documentation/v1/#advanced-scheduling).
-  vpa:
-    type: object
-    description: |
-      VPA settings for kube-state-metrics deployment.
-    default: {}
-    x-examples:
-      - { kubeStateMetricsMaxCPU: "130m", kubeStateMetricsMaxMemory: "115Mi" }
-    properties:
-      kubeStateMetricsMaxCPU:
-        x-examples: [3, "1000m"]
-        oneOf:
-          - type: string
-            pattern: "^[0-9]+m?$"
-          - type: number
-        description: |
-          CPU requests.
-      kubeStateMetricsMaxMemory:
-        x-examples: ["3Mi"]
-        oneOf:
-          - type: string
-            pattern: "^[0-9]+(E|P|T|G|M|K|Ei|Pi|Ti|Gi|Mi|Ki)?$"
-          - type: number
-        description: |
-          Memory requests.

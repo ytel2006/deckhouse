@@ -5,3 +5,6 @@ properties:
   internal:
     type: object
     default: {}
+    properties:
+      folderId:
+        type: string

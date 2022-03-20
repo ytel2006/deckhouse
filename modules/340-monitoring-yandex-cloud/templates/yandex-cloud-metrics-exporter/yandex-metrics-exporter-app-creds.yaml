@@ -1,0 +1,11 @@
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: d8-yandex-metrics-exporter-app-creds
+  namespace: d8-monitoring
+  {{- include "helm_lib_module_labels" (list . (dict "app" "yandex-cloud-metrics-exporter")) | nindent 2 }}
+type: Opaque
+data:
+  api-key: {{ .Values.monitoringYandexCloud.apiKey | b64enc | quote }}
+  folder-id: {{ .Values.monitoringYandexCloud.internal.folderId | b64enc | quote }}
