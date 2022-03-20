@@ -49,6 +49,7 @@ import (
 	_ "github.com/deckhouse/deckhouse/modules/340-monitoring-custom/hooks"
 	_ "github.com/deckhouse/deckhouse/modules/340-monitoring-kubernetes/hooks"
 	_ "github.com/deckhouse/deckhouse/modules/340-monitoring-ping/hooks"
+	_ "github.com/deckhouse/deckhouse/modules/340-monitoring-yandex-cloud/hooks"
 	_ "github.com/deckhouse/deckhouse/modules/400-descheduler/hooks"
 	_ "github.com/deckhouse/deckhouse/modules/402-ingress-nginx/hooks"
 	_ "github.com/deckhouse/deckhouse/modules/460-log-shipper/hooks"
