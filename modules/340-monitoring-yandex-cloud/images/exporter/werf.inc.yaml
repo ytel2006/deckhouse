@@ -2,17 +2,17 @@
 image: {{ .ModuleName }}/{{ .ImageName }}
 from: {{ env "BASE_ALPINE" }}
 import:
-  - artifact: {{ .ModuleName }}/{{ .ImageName }}-artifact
-    add: /go/src/exporter
-    to: /exporter
-    after: setup
+- artifact: {{ .ModuleName }}/{{ .ImageName }}-artifact
+  add: /go/src/exporter
+  to: /exporter
+  after: setup
 docker:
   ENTRYPOINT: [ "/exporter"]
 ---
-image: {{ .ModuleName }}/{{ .ImageName }}-artifact
+artifact: {{ .ModuleName }}/{{ .ImageName }}-artifact
 from: {{ env "BASE_GOLANG_16_ALPINE" }}
 git:
-- add: /modules/340-monitoring-yandex-cloud/images/exporter
+- add: /modules/340-{{ .ModuleName }}/images/{{ .ImageName }}
   to: /src
   excludePaths:
     - "**/*.md"
