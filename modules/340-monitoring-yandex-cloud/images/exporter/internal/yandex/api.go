@@ -49,7 +49,7 @@ var services = map[string]struct{}{
 	"managed-kubernetes": {},
 	// Cloud Functions
 	"serverless-functions": {},
-	// триггеры Cloud Functions
+	// Cloud Functions triggers
 	"serverless_triggers_client_metrics": {},
 	// Yandex Database
 	"ydb": {},
