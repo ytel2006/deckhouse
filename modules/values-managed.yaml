@@ -13,7 +13,7 @@ verticalPodAutoscalerEnabled: true
 monitoringCustomEnabled: true
 monitoringKubernetesEnabled: true
 monitoringPingEnabled: true
-monitoringYandexCloud: false
+monitoringYandexCloudEnabled: false
 deschedulerEnabled: true
 ingressNginxEnabled: true
 dashboardEnabled: true
