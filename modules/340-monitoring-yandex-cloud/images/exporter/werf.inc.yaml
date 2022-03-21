@@ -29,10 +29,22 @@ git:
 mount:
 - fromPath: ~/go-pkg-cache
   to: /go/pkg
-shell:
+
+ansible:
+  beforeInstall:
+    - apk:
+        name: git
+        update_cache: yes
+    - command: rm -rf /var/cache/apk/*
   install:
-    - cd /src
-    - go mod download
+    - shell: go mod download
+      args:
+        chdir: /src
   setup:
-    - cd /src
-    - go build -o exporter cmd/main.go
+    - shell: go build -ldflags="-s -w" -o exporter .
+      args:
+        chdir: /src
+      environment:
+        GOOS: "linux"
+        GOARCH: "amd64"
+        CGO_ENABLED: "0"
