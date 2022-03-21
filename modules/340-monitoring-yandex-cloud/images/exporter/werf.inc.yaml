@@ -3,7 +3,7 @@ image: {{ .ModuleName }}/{{ .ImageName }}
 from: {{ env "BASE_ALPINE" }}
 import:
 - artifact: {{ .ModuleName }}/{{ .ImageName }}-artifact
-  add: /go/src/exporter
+  add: /src/exporter
   to: /exporter
   after: setup
 docker:
