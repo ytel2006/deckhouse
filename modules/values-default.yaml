@@ -21,6 +21,7 @@ monitoringCustomEnabled: true
 monitoringKubernetesEnabled: true
 monitoringKubernetesControlPlaneEnabled: true
 monitoringPingEnabled: true
+monitoringYandexCloud: false
 deschedulerEnabled: true
 ingressNginxEnabled: true
 dashboardEnabled: true
