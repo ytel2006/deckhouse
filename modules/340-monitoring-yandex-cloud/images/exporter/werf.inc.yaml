@@ -29,11 +29,10 @@ git:
 mount:
 - fromPath: ~/go-pkg-cache
   to: /go/pkg
-docker:
-  ENV:
-    WORKDIR: /src/
 shell:
   install:
+    - cd /src
     - go mod download
   setup:
+    - cd /src
     - go build -o exporter cmd/main.go
