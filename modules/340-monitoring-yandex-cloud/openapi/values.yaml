@@ -7,6 +7,8 @@ properties:
     default: {}
     properties:
       folderID:
+        x-examples: [ "folderID" ]
         type: string
       natInstanceName:
+        x-examples: [ "nat-instance" ]
         type: string
