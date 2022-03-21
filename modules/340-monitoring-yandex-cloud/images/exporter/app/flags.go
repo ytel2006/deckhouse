@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package app
 
 import (
 	"strconv"
@@ -23,57 +23,52 @@ import (
 )
 
 var (
-	serviceAccountPath = ""
-	apiKey             = ""
-	apiKeyFilePath     = ""
-	folderID           = ""
-	listenAddress      = "127.0.0.1:9000"
-	services           = make([]string, 0)
-	loggerType         = loggerJSON
-	loggerLevel        = int(logrus.InfoLevel)
-	autoRenewIAMToken  = 1 * time.Hour
+	ApiKey            = ""
+	ApiKeyFilePath    = ""
+	FolderID          = ""
+	ListenAddress     = "127.0.0.1:9000"
+	Services          = make([]string, 0)
+	LoggerType        = loggerJSON
+	LoggerLevel       = int(logrus.InfoLevel)
+	AutoRenewIAMToken = 1 * time.Hour
 )
 
-func flags(cmd *kingpin.Application) {
-	cmd.Flag("service-account-path", "Path to service account file").
-		Envar("SERVICE_ACCOUNT_PATH").
-		StringVar(&serviceAccountPath)
-
+func InitFlags(cmd *kingpin.Application) {
 	cmd.Flag("api-key", "API key for service account").
 		Envar("API_KEY").
-		StringVar(&apiKey)
+		StringVar(&ApiKey)
 
 	cmd.Flag("api-key-file", "API key file path for service account").
 		Envar("API_KEY_PATH").
-		StringVar(&apiKeyFilePath)
+		StringVar(&ApiKeyFilePath)
 
 	cmd.Flag("folder-id", "Yandex folder id").
 		Envar("FOLDER_ID").
 		Required().
-		StringVar(&folderID)
+		StringVar(&FolderID)
 
 	cmd.Flag("listen-address", "Listen address for HTTP").
 		Envar("LISTEN_ADDRESS").
-		Default(listenAddress).
-		StringVar(&listenAddress)
+		Default(ListenAddress).
+		StringVar(&ListenAddress)
 
 	cmd.Flag("logger-type", "Format logs output of a dhctl in different ways.").
 		Envar("LOGGER_TYPE").
-		Default(loggerType).
-		EnumVar(&loggerType, loggerJSON, loggerSimple)
+		Default(LoggerType).
+		EnumVar(&LoggerType, loggerJSON, loggerSimple)
 
 	cmd.Flag("v", "Logger verbosity").
 		Envar("LOGGER_LEVEL").
-		Default(strconv.Itoa(int(loggerLevel))).
-		IntVar(&loggerLevel)
+		Default(strconv.Itoa(int(LoggerLevel))).
+		IntVar(&LoggerLevel)
 
 	cmd.Flag("services", "List services for '/metrics' path").
 		Envar("HTTP_PORT").
-		StringsVar(&services)
+		StringsVar(&Services)
 
 	cmd.Flag("auto-renew-iam-token-period", "Period for renew yandex IAM-token for service account").
 		Envar("HTTP_PORT").
-		Default(autoRenewIAMToken.String()).
-		DurationVar(&autoRenewIAMToken)
+		Default(AutoRenewIAMToken.String()).
+		DurationVar(&AutoRenewIAMToken)
 
 }

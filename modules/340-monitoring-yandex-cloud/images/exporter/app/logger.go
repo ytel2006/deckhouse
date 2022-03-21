@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package app
 
 import (
 	log "github.com/sirupsen/logrus"
@@ -23,18 +23,18 @@ const (
 	loggerJSON   = "json"
 )
 
-func initLogger() *log.Entry {
+func InitLogger() *log.Entry {
 	var formatter log.Formatter = &log.TextFormatter{
 		DisableColors:   true,
 		TimestampFormat: "2006-01-02 15:04:05",
 		FullTimestamp:   true,
 	}
-	if loggerType == loggerJSON {
+	if LoggerType == loggerJSON {
 		formatter = &log.JSONFormatter{}
 	}
 
 	log.SetFormatter(formatter)
-	log.SetLevel(log.Level(loggerLevel))
+	log.SetLevel(log.Level(LoggerLevel))
 
 	return log.NewEntry(log.New())
 }

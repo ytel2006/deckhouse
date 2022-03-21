@@ -15,6 +15,7 @@
 package main
 
 import (
+	"exporter/app"
 	"os"
 
 	"github.com/sirupsen/logrus"
@@ -29,21 +30,21 @@ func main() {
 	kpApp := kingpin.New("yandex cloud metrics exporter", "A tool for export metrics from yandex cloud in prometheus format")
 	kpApp.HelpFlag.Short('h')
 
-	flags(kpApp)
+	app.InitFlags(kpApp)
 
 	kpApp.Action(func(context *kingpin.ParseContext) error {
-		logger := initLogger()
+		logger := app.InitLogger()
 
 		stopCh := make(chan struct{}, 1)
 
-		yandexAPI := yandex.NewCloudAPI(logger, folderID, stopCh).
-			WithAutoRenewPeriod(autoRenewIAMToken)
+		yandexAPI := yandex.NewCloudAPI(logger, app.FolderID, stopCh).
+			WithAutoRenewPeriod(app.AutoRenewIAMToken)
 
-		if err := initAPI(yandexAPI); err != nil {
+		if err := app.InitAPI(yandexAPI); err != nil {
 			return err
 		}
 
-		return server.New(logger, yandexAPI, services).Run(listenAddress, stopCh)
+		return server.New(logger, yandexAPI, app.Services).Run(app.ListenAddress, stopCh)
 	})
 
 	_, err := kpApp.Parse(os.Args[1:])
