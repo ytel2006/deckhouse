@@ -101,9 +101,9 @@ monitoringYandexCloud:
 		It("Hook should set monitoringYandexCloud.internal.folderId", func() {
 			Expect(f).To(ExecuteSuccessfully())
 
-			folderId := f.ValuesGet(`monitoringYandexCloud.internal.folderId`).String()
+			folderID := f.ValuesGet(`monitoringYandexCloud.internal.folderID`).String()
 
-			Expect(folderId).To(Equal("yandexFolderID"))
+			Expect(folderID).To(Equal("yandexFolderID"))
 		})
 	})
 })

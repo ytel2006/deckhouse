@@ -42,12 +42,12 @@ var _ = sdk.RegisterFunc(&go_hook.HookConfig{
 			NameSelector: &types.NameSelector{
 				MatchNames: []string{"d8-provider-cluster-configuration"},
 			},
-			FilterFunc: applyFolderId,
+			FilterFunc: applyFolderID,
 		},
 	},
 }, discoveryFolderId)
 
-func applyFolderId(obj *unstructured.Unstructured) (go_hook.FilterResult, error) {
+func applyFolderID(obj *unstructured.Unstructured) (go_hook.FilterResult, error) {
 	var secret = &v1core.Secret{}
 	err := sdk.FromUnstructured(obj, secret)
 	if err != nil {
@@ -70,34 +70,34 @@ func applyFolderId(obj *unstructured.Unstructured) (go_hook.FilterResult, error)
 		return "", fmt.Errorf("cannot decode `provider` property from provider cluster configuration: %v", err)
 	}
 
-	folderIdRaw, ok := provider["folderID"]
+	folderIDRaw, ok := provider["folderID"]
 	if !ok {
 		return "", fmt.Errorf("folderID not found in provider")
 	}
 
-	folderId, ok := folderIdRaw.(string)
+	folderID, ok := folderIDRaw.(string)
 	if !ok {
 		return "", fmt.Errorf("folderID is not string")
 	}
 
-	if folderId == "" {
+	if folderID == "" {
 		return "", fmt.Errorf("folderID is empty")
 	}
 
-	return folderId, nil
+	return folderID, nil
 }
 
 // discoveryFolderId
 // There is CM kube-system/d8-cluster-uuid with cluster uuid. Hook must store it to `global.discovery.clusterUUID`.
 // Or generate uuid and create CM
 func discoveryFolderId(input *go_hook.HookInput) error {
-	folderIdSnap := input.Snapshots["folder_id"]
-	if len(folderIdSnap) == 0 {
+	folderIDSnap := input.Snapshots["folder_id"]
+	if len(folderIDSnap) == 0 {
 		return fmt.Errorf("yandex provider cloud configuration secret not found")
 	}
 
-	folderId := folderIdSnap[0].(string)
-	input.Values.Set("monitoringYandexCloud.internal.folderId", folderId)
+	folderID := folderIDSnap[0].(string)
+	input.Values.Set("monitoringYandexCloud.internal.folderID", folderID)
 
 	return nil
 }
