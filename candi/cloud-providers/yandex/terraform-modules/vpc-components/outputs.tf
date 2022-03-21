@@ -29,3 +29,10 @@ output "zone_to_subnet_id_map" {
       (yandex_vpc_subnet.kube_c[0].zone): yandex_vpc_subnet.kube_c[0].id
     } : local.zone_to_subnet_id_map_c_final
 }
+
+output "nat_instance" {
+  value = var.should_create_nat_instance ? {
+    name: yandex_compute_instance.nat_instance[0].name
+    id: yandex_compute_instance.nat_instance[0].id
+  } : null
+}

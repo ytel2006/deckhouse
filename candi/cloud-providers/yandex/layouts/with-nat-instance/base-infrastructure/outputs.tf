@@ -23,5 +23,6 @@ output "cloud_discovery_data" {
     "zones" = lookup(var.providerClusterConfiguration, "zones", null) != null ? tolist(setintersection(keys(module.vpc_components.zone_to_subnet_id_map), var.providerClusterConfiguration.zones)) : keys(module.vpc_components.zone_to_subnet_id_map)
     "zoneToSubnetIdMap" = module.vpc_components.zone_to_subnet_id_map
     "shouldAssignPublicIPAddress" = false
+    "natInstance"=module.vpc_components.nat_instance
   }
 }

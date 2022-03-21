@@ -6,5 +6,7 @@ properties:
     type: object
     default: {}
     properties:
-      folderId:
+      folderID:
+        type: string
+      natInstanceName:
         type: string
