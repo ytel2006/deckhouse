@@ -41,7 +41,7 @@ ansible:
       args:
         chdir: /src
   setup:
-    - shell: go build -ldflags="-s -w" -o exporter cmd/main.go
+    - shell: go build -ldflags="-s -w" -o exporter cmd/
       args:
         chdir: /src
       environment:
