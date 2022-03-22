@@ -14,7 +14,7 @@ spec:
       tlsConfig:
         insecureSkipVerify: true
       honorLabels: true
-      scrapeTimeout: 20
+      scrapeTimeout: "20"
       relabelings:
         - sourceLabels: [ resource_id ]
           regex: {{ .Values.monitoringYandexCloud.internal.natInstanceName }}
