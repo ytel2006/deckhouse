@@ -1,0 +1,29 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: yandex-cloud-metrics-exporter
+  namespace: d8-monitoring
+  {{- include "helm_lib_module_labels" (list . (dict "prometheus" "main")) | nindent 2 }}
+spec:
+  jobLabel: yandex-nat-instance
+  endpoints:
+    - port: https-metrics
+      scheme: https
+      bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+      tlsConfig:
+        insecureSkipVerify: true
+      honorLabels: true
+      scrapeTimeout: 20
+      relabelings:
+        - sourceLabels: [ resource_id ]
+          regex: {{ .Values.monitoringYandexCloud.internal.natInstanceName }}
+          action: keep
+        - targetLabel: "nat_instance"
+          replacement: "true"
+  selector:
+    matchLabels:
+      app: yandex-cloud-metrics-exporter
+  namespaceSelector:
+    matchNames:
+      - d8-monitoring
