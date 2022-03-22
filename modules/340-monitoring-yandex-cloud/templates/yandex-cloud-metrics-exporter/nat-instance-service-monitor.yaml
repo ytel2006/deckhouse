@@ -1,4 +1,4 @@
----
+{{- if .Values.monitoringYandexCloud.internal.natInstanceName }}
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
@@ -9,13 +9,14 @@ spec:
   jobLabel: yandex-nat-instance
   endpoints:
     - port: https-metrics
+      path: /metrics/compute
       scheme: https
       bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
       tlsConfig:
         insecureSkipVerify: true
       honorLabels: true
       scrapeTimeout: "20s"
-      relabelings:
+      metricRelabelings:
         - sourceLabels: [ resource_id ]
           regex: {{ .Values.monitoringYandexCloud.internal.natInstanceName }}
           action: keep
