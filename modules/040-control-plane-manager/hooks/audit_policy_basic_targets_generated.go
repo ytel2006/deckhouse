@@ -96,4 +96,5 @@ var auditPolicyBasicServiceAccounts = []string{
 	"upmeter-agent",
 	"webhook",
 	"webhook-handler",
+	"yandex-cloud-metrics-exporter",
 }
