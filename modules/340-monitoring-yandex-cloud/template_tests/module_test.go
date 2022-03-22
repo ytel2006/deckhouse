@@ -61,10 +61,10 @@ modulesImages:
 			deployment := hec.KubernetesResource("Deployment", "d8-monitoring", "yandex-cloud-metrics-exporter")
 			Expect(deployment.Exists()).To(BeTrue())
 
-			secret := hec.KubernetesResource("Secret", "d8-monitoring", "yandex-cloud-metrics-exporter")
+			secret := hec.KubernetesResource("Secret", "d8-monitoring", "d8-yandex-metrics-exporter-app-creds")
 			Expect(secret.Exists()).To(BeTrue())
 			Expect(secret.Field("data.api-key").String()).To(Equal("YXBpLWtleQ=="))
-			Expect(secret.Field("data.folder-id").String()).To(Equal("Y2x1c3Rlci1uYXQtaW5zdGFuY2U="))
+			Expect(secret.Field("data.folder-id").String()).To(Equal("Zm9sZGVyLWlk"))
 		})
 	})
 })
