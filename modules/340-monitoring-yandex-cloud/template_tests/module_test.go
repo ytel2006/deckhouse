@@ -40,6 +40,16 @@ modulesImages:
     monitoringYandexCloud:
       exporter: exporter_image
 `
+	assertExporterDeploymentAndSecret := func(h *Config) {
+		deployment := h.KubernetesResource("Deployment", "d8-monitoring", "yandex-cloud-metrics-exporter")
+		Expect(deployment.Exists()).To(BeTrue())
+
+		secret := h.KubernetesResource("Secret", "d8-monitoring", "d8-yandex-metrics-exporter-app-creds")
+		Expect(secret.Exists()).To(BeTrue())
+		Expect(secret.Field("data.api-key").String()).To(Equal("YXBpLWtleQ=="))
+		Expect(secret.Field("data.folder-id").String()).To(Equal("Zm9sZGVyLWlk"))
+	}
+
 	hec := SetupHelmConfig("")
 
 	BeforeEach(func() {
@@ -55,16 +65,36 @@ modulesImages:
 			hec.HelmRender()
 		})
 
-		It("Should create desired objects", func() {
+		It("Should create deployment with exporter and secret with creds for exporter", func() {
 			Expect(hec.RenderError).ShouldNot(HaveOccurred())
 
-			deployment := hec.KubernetesResource("Deployment", "d8-monitoring", "yandex-cloud-metrics-exporter")
-			Expect(deployment.Exists()).To(BeTrue())
+			assertExporterDeploymentAndSecret(hec)
+		})
 
-			secret := hec.KubernetesResource("Secret", "d8-monitoring", "d8-yandex-metrics-exporter-app-creds")
-			Expect(secret.Exists()).To(BeTrue())
-			Expect(secret.Field("data.api-key").String()).To(Equal("YXBpLWtleQ=="))
-			Expect(secret.Field("data.folder-id").String()).To(Equal("Zm9sZGVyLWlk"))
+		It("Should create ServiceMonitor for export nat-instance-metrics", func() {
+			Expect(hec.RenderError).ShouldNot(HaveOccurred())
+
+			deployment := hec.KubernetesResource("ServiceMonitor", "d8-monitoring", "yandex-nat-instance-metrics")
+			Expect(deployment.Exists()).To(BeTrue())
+		})
+	})
+
+	Context("without nat instance", func() {
+		BeforeEach(func() {
+			hec.HelmRender()
+		})
+
+		It("Should create deployment with exporter and secret with creds for exporter", func() {
+			Expect(hec.RenderError).ShouldNot(HaveOccurred())
+
+			assertExporterDeploymentAndSecret(hec)
+		})
+
+		It("Should not create ServiceMonitor for export nat-instance metrics", func() {
+			Expect(hec.RenderError).ShouldNot(HaveOccurred())
+
+			deployment := hec.KubernetesResource("ServiceMonitor", "d8-monitoring", "yandex-nat-instance-metrics")
+			Expect(deployment.Exists()).To(BeFalse())
 		})
 	})
 })
