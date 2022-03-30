@@ -28,3 +28,4 @@ spec:
   namespaceSelector:
     matchNames:
       - d8-monitoring
+{{- end }}
