@@ -1,4 +1,4 @@
-- name: d8.yandex_cloud_nat_instance
+- name: nat-instance.general
   rules:
   - alert: YandexNatInstanceConnectionsQuotaUtilization
     expr: >-
