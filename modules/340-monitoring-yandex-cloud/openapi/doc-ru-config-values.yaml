@@ -2,11 +2,15 @@ type: object
 properties:
   apiKey:
     type: string
-    x-examples: [ "key" ]
     description: |
       [API-ключ](https://cloud.yandex.com/en/docs/iam/concepts/authorization/api-key) сервисного аккаунта.
       [Инструкция по созданию API-ключ](https://cloud.yandex.com/ru/docs/iam/operations/api-key/create)
       Для доступа к метрикам нелбходимо назначить роль 'monitoring.viewer' для сервис-аккаунта.
+  disableScrapeNATInstanceMetrics:
+    type: boolean
+    default: false
+    description: |
+      Выключить сбор метрик для NAT-узла в схеме размещения `WithNATInstance`.
   highAvailability:
     description: |
       Ручное управление режимом отказоустойчивости.

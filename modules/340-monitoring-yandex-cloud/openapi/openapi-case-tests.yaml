@@ -2,7 +2,8 @@ positive:
   configValues:
     - apiKey: apikey
   values:
-    - internal:
+    - apiKey: apikey
+      internal:
         folderID: folder_id
         natInstanceName: name
 negative:

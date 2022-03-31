@@ -9,6 +9,12 @@ properties:
       Service account [API key](https://cloud.yandex.com/en/docs/iam/concepts/authorization/api-key).
       [Instruction for creating APIKey](https://cloud.yandex.com/en/docs/iam/operations/api-key/create).
       For access to get metrics you need to add role 'monitoring.viewer' to service-account.
+  disableScrapeNATInstanceMetrics:
+    type: boolean
+    x-examples: [true, false]
+    default: false
+    description: |
+      Disable scrape NAT-instance metrics for `WithNATInstance` layout.
   highAvailability:
     type: boolean
     x-examples: [true, false]

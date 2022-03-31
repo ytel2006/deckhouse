@@ -74,8 +74,29 @@ modulesImages:
 		It("Should create ServiceMonitor for export nat-instance-metrics", func() {
 			Expect(hec.RenderError).ShouldNot(HaveOccurred())
 
+			monitor := hec.KubernetesResource("ServiceMonitor", "d8-monitoring", "yandex-nat-instance-metrics")
+			Expect(monitor.Exists()).To(BeTrue())
+		})
+	})
+
+	Context("with nat instance, but scraping was disabled from config", func() {
+		BeforeEach(func() {
+			hec.ValuesSet("monitoringYandexCloud.disableScrapeNATInstanceMetrics", true)
+			hec.ValuesSet("monitoringYandexCloud.internal.natInstanceName", "cluster-nat-instance")
+			hec.HelmRender()
+		})
+
+		It("Should create deployment with exporter and secret with creds for exporter", func() {
+			Expect(hec.RenderError).ShouldNot(HaveOccurred())
+
+			assertExporterDeploymentAndSecret(hec)
+		})
+
+		It("Should not create ServiceMonitor for export nat-instance-metrics", func() {
+			Expect(hec.RenderError).ShouldNot(HaveOccurred())
+
 			deployment := hec.KubernetesResource("ServiceMonitor", "d8-monitoring", "yandex-nat-instance-metrics")
-			Expect(deployment.Exists()).To(BeTrue())
+			Expect(deployment.Exists()).To(BeFalse())
 		})
 	})
 
@@ -93,8 +114,8 @@ modulesImages:
 		It("Should not create ServiceMonitor for export nat-instance metrics", func() {
 			Expect(hec.RenderError).ShouldNot(HaveOccurred())
 
-			deployment := hec.KubernetesResource("ServiceMonitor", "d8-monitoring", "yandex-nat-instance-metrics")
-			Expect(deployment.Exists()).To(BeFalse())
+			monitor := hec.KubernetesResource("ServiceMonitor", "d8-monitoring", "yandex-nat-instance-metrics")
+			Expect(monitor.Exists()).To(BeFalse())
 		})
 	})
 })
