@@ -270,13 +270,13 @@ k8s:
     bashible: *bashible_k8s_ge_1_19
     ccm:
       openstack: v1.23.0 # done
-      yandex: v0.22.0
+      yandex: v0.23.0 #done
       aws: v1.23.0-alpha.0 # done
       vsphere: v1.22.6 # done
       azure: v1.23.8 # done
       gcp: 61e23272eaea54e5deec9af5e5ad6f6bc23663ae # done
     csi:
-      openstack: v1.22.0
+      openstack: v1.23.0 #done
       provisioner: v3.1.0@sha256:c3dfb4b04796b417bb0149014323bf00debf7ff4ea6fbdcee36bbd650445155e # done
       attacher: v3.4.0@sha256:03e115718d258479ce19feeb9635215f98e5ad1475667b4395b79e68caf129a6 #done
       resizer: v1.4.0@sha256:551fd931edd5eefa014410c12c59766f39b869df745ed2cc667440ddcb81d81d #done
