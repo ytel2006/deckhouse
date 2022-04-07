@@ -1,0 +1,23 @@
+cloud-provider-aws:
+  fixes:
+    - summary: The Standard layout is considered deprecated.
+      pull_request: https://github.com/deckhouse/deckhouse/pull/1292
+deckhouse-web:
+  fixes:
+    - summary: Generation of a cloud provider cluster configuration.
+      pull_request: https://github.com/deckhouse/deckhouse/pull/1289
+docs:
+  fixes:
+    - summary: Update documentation of the linstor module
+      pull_request: https://github.com/deckhouse/deckhouse/pull/1278
+    - summary: Proper display of the mandatory use of the parameter.
+      pull_request: https://github.com/deckhouse/deckhouse/pull/1272
+    - summary: Review and fix the 'Control plane management' section.
+      pull_request: https://github.com/deckhouse/deckhouse/pull/1239
+    - summary: VMware vSphere cloud provider documentation updates
+      pull_request: https://github.com/deckhouse/deckhouse/pull/1194
+linstor:
+  fixes:
+    - summary: Update documentation.
+      pull_request: https://github.com/deckhouse/deckhouse/pull/1278
+
