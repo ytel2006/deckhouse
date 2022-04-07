@@ -23,11 +23,11 @@ docker:
 artifact: {{ $.ModuleName }}/{{ $.ImageName }}-artifact-{{ $version | replace "." "-" }}
     {{- if semverCompare "=1.23" $version }}
 from: {{ env "BASE_GOLANG_17_BUSTER" }}
-    {{ - else if semverCompare "=1.22" $version }}
+    {{- else if semverCompare "=1.22" $version }}
 from: {{ env "BASE_GOLANG_16_BUSTER" }}
-    {{ - else }}
+    {{- else }}
 from: {{ env "BASE_GOLANG_BUSTER" }}
-    {{ - end }}
+    {{- end }}
 git:
 - add: /ee/modules/030-{{ $.ModuleName }}/images/{{ $.ImageName }}/patches
   to: /patches
